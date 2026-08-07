@@ -1,0 +1,63 @@
+"use client";
+import { useState } from "react";
+
+export default function Chatbot() {
+  const [input, setInput] = useState("");
+  const [messages, setMessages] = useState<{role: string, text: string}[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+
+  const sendMessage = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!input) return;
+
+    // 1. Add user's message to the screen
+    const newMessages = [...messages, { role: "user", text: input }];
+    setMessages(newMessages);
+    setInput("");
+    setIsLoading(true);
+
+    try {
+      // 2. Send the message to your Python backend
+      const res = await fetch("http://localhost:8000/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ user_message: input }),
+      });
+      
+      const data = await res.json();
+      
+      // 3. Add Gemini's grounded answer to the screen
+      setMessages([...newMessages, { role: "ai", text: data.reply }]);
+    } catch (error) {
+      setMessages([...newMessages, { role: "ai", text: "Connection error." }]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  return (
+    <div className="w-96 h-[500px] border rounded-xl flex flex-col bg-slate-900 text-white">
+      {/* Message History */}
+      <div className="flex-1 overflow-y-auto p-4 space-y-4">
+        {messages.map((msg, i) => (
+          <div key={i} className={`p-3 rounded-lg w-3/4 ${msg.role === 'user' ? 'bg-blue-600 ml-auto' : 'bg-slate-700'}`}>
+            {msg.text}
+          </div>
+        ))}
+        {isLoading && <div className="text-slate-400 text-sm">Searching SNAPS database...</div>}
+      </div>
+
+      {/* Input Box */}
+      <form onSubmit={sendMessage} className="p-2 flex gap-2 border-t border-slate-700">
+        <input 
+          type="text" 
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          className="flex-1 bg-slate-800 rounded p-2 text-white outline-none"
+          placeholder="Ask a technical question..."
+        />
+        <button type="submit" className="bg-blue-500 px-4 rounded font-bold">Send</button>
+      </form>
+    </div>
+  );
+}
