@@ -1,7 +1,7 @@
 fastapi
-uvicorn[standard]
-sqlalchemy
+uvicorn
+langchain-classic
+langchain-google-genai
+langchain-sqlserver
 pydantic
-passlib
-bcrypt==4.0.1
-PyJWT
+python-dotenv

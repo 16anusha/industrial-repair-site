@@ -1,53 +1,81 @@
-from fastapi import FastAPI
-from pydantic import BaseModel
 import os
-from langchain_postgres import PGVector
-from langchain_google_genai import GoogleGenerativeAIEmbeddings
-import google.generativeai as genai
+from dotenv import load_dotenv
+from fastapi import FastAPI, HTTPException
+from pydantic import BaseModel
+from langchain_google_genai import GoogleGenerativeAIEmbeddings, ChatGoogleGenerativeAI
+from langchain_sqlserver.vectorstores import SQLServer_VectorStore
+from fastapi.middleware.cors import CORSMiddleware
+# FIX: Updated these two imports to use langchain_classic!
+from langchain_classic.chains import create_retrieval_chain
+from langchain_classic.chains.combine_documents import create_stuff_documents_chain
 
+from langchain_core.prompts import ChatPromptTemplate
+
+load_dotenv()
+
+REAL_GEMINI_KEY = os.getenv("GEMINI_API_KEY")
 app = FastAPI()
-
-# 1. Setup your API Keys
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-genai.configure(api_key=GEMINI_API_KEY)
-DB_URL = "postgresql+psycopg://snaps_admin:securepassword@localhost:5432/snaps_rag"
-
-# 2. Connect to your pgvector Filing Cabinet
-embeddings = GoogleGenerativeAIEmbeddings(model="models/text-embedding-004")
-vector_store = PGVector(
-    connection=DB_URL,
-    embeddings=embeddings,
-    collection_name="sharepoint_docs"
+# Allow your frontend to communicate with this backend
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Allows all websites to connect (you can restrict this later!)
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+# 1. Initialize Gemini Embeddings and LLM
+embeddings = GoogleGenerativeAIEmbeddings(
+    model="models/gemini-embedding-001",
+    google_api_key=REAL_GEMINI_KEY,
+    output_dimensionality=768
 )
 
-# 3. Define the data we expect from the frontend
-class ChatRequest(BaseModel):
-    user_message: str
+llm = ChatGoogleGenerativeAI(
+    model="gemini-3.6-flash",
+    temperature=0.3,
+    google_api_key=REAL_GEMINI_KEY
+)
 
-@app.post("/api/chat")
+# 2. Connect to your Azure SQL Vector Store
+vector_store = SQLServer_VectorStore(
+    connection_string=os.environ["AZURE_SQL_CONNECTION_STRING"],
+    table_name="book_chunks",
+    embedding_function=embeddings,
+    embedding_length=768
+)
+
+# Create a retriever from the vector store
+retriever = vector_store.as_retriever(search_kwargs={"k": 3})
+
+# 3. Setup the RAG Prompt and Chains
+system_prompt = (
+    "You are an expert AI assistant for an industrial repair site. "
+    "Use the following pieces of retrieved context to answer "
+    "the user's question. If you don't know the answer, say that you "
+    "don't know.\n\n"
+    "{context}"
+)
+
+prompt = ChatPromptTemplate.from_messages([
+    ("system", system_prompt),
+    ("human", "{input}"),
+])
+
+question_answer_chain = create_stuff_documents_chain(llm, prompt)
+rag_chain = create_retrieval_chain(retriever, question_answer_chain)
+
+class ChatRequest(BaseModel):
+    message: str
+
+@app.post("/chat")
 async def chat_endpoint(request: ChatRequest):
-    # A. Convert the user's question to a vector and search the database!
-    # (This pulls the top 3 most relevant paragraphs from Suren's books)
-    matching_docs = vector_store.similarity_search(request.user_message, k=3)
-    
-    # B. Combine those paragraphs into a single string of text
-    context_text = "\n\n".join([doc.page_content for doc in matching_docs])
-    
-    # C. Create the "Grounded" Prompt for Gemini
-    strict_prompt = f"""
-    You are an expert engineering assistant for SNAPS Engineering.
-    You MUST answer the user's question using ONLY the context provided below. 
-    If the answer is not in the context, say "I cannot find this in our technical library. Please contact Suren."
-    
-    CONTEXT (From our technical manuals):
-    {context_text}
-    
-    USER QUESTION:
-    {request.user_message}
-    """
-    
-    # D. Send to Gemini and return the answer to Next.js
-    model = genai.GenerativeModel('gemini-1.5-flash')
-    response = model.generate_content(strict_prompt)
-    
-    return {"reply": response.text}
+    try:
+        # Run the RAG chain using the user's message as input
+        response = rag_chain.invoke({"input": request.message})
+        return {
+            "query": request.message,
+            "answer": response["answer"],
+            "source_documents": [doc.page_content for doc in response.get("context", [])]
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
