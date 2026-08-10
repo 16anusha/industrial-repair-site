@@ -14,6 +14,7 @@ from langchain_core.prompts import ChatPromptTemplate
 load_dotenv()
 
 REAL_GEMINI_KEY = os.getenv("GEMINI_API_KEY")
+
 app = FastAPI()
 # Allow your frontend to communicate with this backend
 app.add_middleware(
