@@ -1,6 +1,10 @@
 fastapi
 uvicorn
 langchain-classic
+langchain
+langchain-postgres
+psycopg
+psycopg-binary
 langchain-google-genai
 langchain-sqlserver
 pydantic
