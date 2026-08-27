@@ -19,11 +19,11 @@ function ChatbotWidget() {
     setIsLoading(true);
 
     try {
-      const res = await fetch("https://industrial-repair-api-v2.onrender.com/api/rag/ask", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ user_message: input }),
-      });
+      const res = await fetch("https://industrial-repair-api-v2.onrender.com/chat", {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({ message: input }), 
+});
       
       const data = await res.json();
       setMessages([...newMessages, { role: "ai", text: data.reply }]);
