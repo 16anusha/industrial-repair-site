@@ -5,10 +5,18 @@ from langchain.chains import create_retrieval_chain
 from langchain.chains.combine_documents import create_stuff_documents_chain
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_postgres import PGVector
+from fastapi.middleware.cors import CORSMiddleware
 import os
 
 app = FastAPI()
-
+# Allow your frontend to communicate with this backend
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Allows all websites to connect
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 # Database Setup
 DB_URL = "postgresql+psycopg://snaps_admin:securepassword@localhost:5432/snaps_rag"
 embeddings = GoogleGenerativeAIEmbeddings(
