@@ -59,7 +59,7 @@ function ChatbotWidget() {
               <div key={i} className={`p-3 rounded-lg w-3/4 text-sm ${msg.role === 'user' ? 'bg-red-600 ml-auto' : 'bg-zinc-800 border border-zinc-700'}`}>
                 {msg.text}
               </div>
-            )}
+            ))}
             {isLoading && <div className="text-red-500 text-sm font-mono animate-pulse">Searching SNAPS database...</div>}
           </div>
 
