@@ -19,7 +19,7 @@ function ChatbotWidget() {
     setIsLoading(true);
 
     try {
-      const res = await fetch("https://industrial-repair-api-v2.onrender.com/api/chat", {
+      const res = await fetch("https://industrial-repair-api-v2.onrender.com/api/rag/ask", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ user_message: input }),
